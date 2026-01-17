@@ -1,4 +1,4 @@
-🎮 TumblePop – Arcade Edition (SFML 2.6.1)
+## 🎮 TumblePop – Arcade Edition (SFML 2.6.1)
 
 A modern C++ reimplementation of the classic Tumble Pop arcade game, built using SFML 2.6.1.  
 This project focuses on polished gameplay mechanics, smooth animations, and faithful arcade-style enemy behavior.
