@@ -6,7 +6,7 @@ This project focuses on polished gameplay mechanics, smooth animations, and fait
 🎥 Gameplay Demo
 
 ▶️ Watch the gameplay recording:
-https://github.com/i250992-sudo/TumblePoP-Game/blob/main/Data/tumblepop%20game%20record.mp4
+https://github.com/user-attachments/assets/ffaa6c64-83b4-4fe7-9783-720157d013c0
 
 The video is stored directly in the repository and auto-plays on GitHub.
 
