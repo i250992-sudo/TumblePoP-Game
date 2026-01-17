@@ -1,0 +1,541 @@
+#include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/Audio.hpp>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
+#include <cmath>
+#include <chrono>
+#include <algorithm>
+
+using sf::RenderWindow;
+using sf::VideoMode;
+using sf::Texture;
+using sf::Sprite;
+using sf::SoundBuffer;
+using sf::Sound;
+using sf::Event;
+using sf::Keyboard;
+using sf::IntRect;
+
+static const int SCREEN_WIDTH = 1280;
+static const int SCREEN_HEIGHT = 800;
+static const int CELL_SIZE = 64;
+static const int LEVEL_WIDTH = 20;
+static const int LEVEL_HEIGHT = 12;
+static const float PLAYER_SCALE = 1.2f;
+static const int PLAYER_FRAME_WIDTH = 48;
+static const int PLAYER_FRAME_HEIGHT = 48;
+static const float ENEMY_SCALE = 1.2f;
+static const int ENEMY_FRAME_WIDTH = 48;
+static const int ENEMY_FRAME_HEIGHT = 48;
+static const float VACUUM_EFFECT_THICKNESS = 1.5f;
+static const float EFFECT_SCALE = 1.0f;
+
+static void setGlyph(unsigned char glyphs[128][8], char c, const unsigned char rows[8])
+{
+    for (int i = 0; i < 8; ++i) glyphs[(unsigned char)c][i] = rows[i];
+}
+
+static void initGlyphs(unsigned char glyphs[128][8])
+{
+    std::memset(glyphs, 0, sizeof(unsigned char) * 128 * 8);
+    setGlyph(glyphs,'A',(unsigned char[8]){0x18,0x3C,0x66,0x66,0x7E,0x66,0x66,0x00});
+    setGlyph(glyphs,'B',(unsigned char[8]){0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00});
+    setGlyph(glyphs,'C',(unsigned char[8]){0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00});
+    setGlyph(glyphs,'D',(unsigned char[8]){0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00});
+    setGlyph(glyphs,'E',(unsigned char[8]){0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0x00});
+    setGlyph(glyphs,'F',(unsigned char[8]){0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0x00});
+    setGlyph(glyphs,'G',(unsigned char[8]){0x3C,0x66,0x60,0x6E,0x66,0x66,0x3E,0x00});
+    setGlyph(glyphs,'H',(unsigned char[8]){0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00});
+    setGlyph(glyphs,'I',(unsigned char[8]){0x3C,0x18,0x18,0x18,0x18,0x18,0x3C,0x00});
+    setGlyph(glyphs,'J',(unsigned char[8]){0x1E,0x0C,0x0C,0x0C,0x0C,0x6C,0x38,0x00});
+    setGlyph(glyphs,'K',(unsigned char[8]){0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00});
+    setGlyph(glyphs,'L',(unsigned char[8]){0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00});
+    setGlyph(glyphs,'M',(unsigned char[8]){0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00});
+    setGlyph(glyphs,'N',(unsigned char[8]){0x66,0x76,0x7E,0x6E,0x66,0x66,0x66,0x00});
+    setGlyph(glyphs,'O',(unsigned char[8]){0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00});
+    setGlyph(glyphs,'P',(unsigned char[8]){0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00});
+    setGlyph(glyphs,'Q',(unsigned char[8]){0x3C,0x66,0x66,0x66,0x6A,0x6C,0x36,0x00});
+    setGlyph(glyphs,'R',(unsigned char[8]){0x7C,0x66,0x66,0x7C,0x6C,0x66,0x66,0x00});
+    setGlyph(glyphs,'S',(unsigned char[8]){0x3C,0x66,0x30,0x1C,0x06,0x66,0x3C,0x00});
+    setGlyph(glyphs,'T',(unsigned char[8]){0x7E,0x5A,0x18,0x18,0x18,0x18,0x3C,0x00});
+    setGlyph(glyphs,'U',(unsigned char[8]){0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00});
+    setGlyph(glyphs,'V',(unsigned char[8]){0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00});
+    setGlyph(glyphs,'W',(unsigned char[8]){0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00});
+    setGlyph(glyphs,'X',(unsigned char[8]){0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00});
+    setGlyph(glyphs,'Y',(unsigned char[8]){0x66,0x66,0x3C,0x18,0x18,0x18,0x3C,0x00});
+    setGlyph(glyphs,'Z',(unsigned char[8]){0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00});
+    setGlyph(glyphs,'0',(unsigned char[8]){0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00});
+    setGlyph(glyphs,'1',(unsigned char[8]){0x18,0x38,0x18,0x18,0x18,0x18,0x3C,0x00});
+    setGlyph(glyphs,'2',(unsigned char[8]){0x3C,0x66,0x06,0x0C,0x30,0x60,0x7E,0x00});
+    setGlyph(glyphs,'3',(unsigned char[8]){0x7E,0x06,0x0C,0x1C,0x06,0x66,0x3C,0x00});
+    setGlyph(glyphs,'4',(unsigned char[8]){0x0C,0x1C,0x3C,0x6C,0x7E,0x0C,0x0C,0x00});
+    setGlyph(glyphs,'5',(unsigned char[8]){0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00});
+    setGlyph(glyphs,'6',(unsigned char[8]){0x1C,0x30,0x60,0x7C,0x66,0x66,0x3C,0x00});
+    setGlyph(glyphs,'7',(unsigned char[8]){0x7E,0x06,0x0C,0x18,0x30,0x30,0x30,0x00});
+    setGlyph(glyphs,'8',(unsigned char[8]){0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00});
+    setGlyph(glyphs,'9',(unsigned char[8]){0x3C,0x66,0x66,0x3E,0x06,0x0C,0x38,0x00});
+    setGlyph(glyphs,' ',(unsigned char[8]){0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00});
+    setGlyph(glyphs,':',(unsigned char[8]){0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x00});
+    setGlyph(glyphs,'!',(unsigned char[8]){0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x00});
+    setGlyph(glyphs,'[',(unsigned char[8]){0x3C,0x30,0x30,0x30,0x30,0x30,0x3C,0x00});
+    setGlyph(glyphs,']',(unsigned char[8]){0x3C,0x0C,0x0C,0x0C,0x0C,0x0C,0x3C,0x00});
+}
+
+static void drawTextMono(RenderWindow& window, Texture& src, const char* s, float x, float y, float scale, unsigned char glyphs[128][8])
+{
+    if (src.getSize().x == 0 || src.getSize().y == 0) return;
+    Sprite px(src);
+    px.setTextureRect(IntRect(0,0,1,1));
+    px.setScale(scale, scale);
+    float penX = 0;
+    const char* c = s;
+    while (*c) {
+        unsigned char ci = (unsigned char)(*c);
+        for (int r = 0; r < 8; ++r) {
+            unsigned char row = glyphs[ci][r];
+            for (int col = 0; col < 8; ++col) {
+                if ((row >> (7 - col)) & 1) {
+                    px.setPosition(x + penX + col * scale, y + r * scale);
+                    window.draw(px);
+                }
+            }
+        }
+        penX += 8 * scale + scale;
+        ++c;
+    }
+}
+
+static IntRect uniformRect(Texture& tex, int idx, int frames)
+{
+    unsigned w = tex.getSize().x, h = tex.getSize().y;
+    int fw = (int)(w / (unsigned)(frames > 0 ? frames : 1));
+    if (fw <= 0) fw = 1;
+    int x = idx * fw;
+    return IntRect(x, 0, fw, (int)h);
+}
+
+static int platformTopYAt(char level[LEVEL_HEIGHT][LEVEL_WIDTH], int row, int col)
+{
+    int y = row * CELL_SIZE;
+    if (row == 11) return y - 22;
+    return y - 17;
+}
+
+int main()
+{
+    unsigned char glyphs[128][8];
+    initGlyphs(glyphs);
+
+    RenderWindow window(VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT), "TumblePop - Arcade Edition");
+    window.setFramerateLimit(60);
+
+    Texture greenRow1Tex, greenRow2Tex, yellowRow1Tex, yellowRow2Tex;
+    Texture ghostTex, skeletonTex, invisibleTex, chelnovTex;
+    Texture bgTex, platformTex;
+    Texture vacuumBeamTex; // Replaced specific beam texture with vacuum.png
+    Texture rainbowShotTex; // Added for projectile
+    Texture powTex; // Added for powerup
+    
+    // Load existing assets
+    greenRow1Tex.loadFromFile("Data/Asset/green_player_row_1.png");
+    greenRow2Tex.loadFromFile("Data/Asset/green_player_row_2.png");
+    yellowRow1Tex.loadFromFile("Data/Asset/yellow_player_row_1.png");
+    yellowRow2Tex.loadFromFile("Data/Asset/yellow_player_row_2.png");
+    ghostTex.loadFromFile("Data/Asset/ghost.png");
+    skeletonTex.loadFromFile("Data/Asset/skeleton.png");
+    invisibleTex.loadFromFile("Data/Asset/invisible.png");
+    chelnovTex.loadFromFile("Data/Asset/chelnov.png");
+    vacuumBeamTex.loadFromFile("Data/Asset/vacuum.png"); // Using vacuum.png as substitute
+    rainbowShotTex.loadFromFile("Data/Asset/0.png"); // Using 0.png as substitute for shot
+    bgTex.loadFromFile("Data/Asset/bg.png");
+    platformTex.loadFromFile("Data/Asset/block1.png");
+    powTex.loadFromFile("Data/Asset/heart.png"); // Using heart.png for powerup
+
+    Sprite bgSprite; 
+    if (bgTex.getSize().x > 0) {
+        bgSprite.setTexture(bgTex);
+        bgSprite.setScale((float)SCREEN_WIDTH / bgTex.getSize().x, (float)SCREEN_HEIGHT / bgTex.getSize().y);
+    }
+
+    Sprite platformSprite; 
+    if (platformTex.getSize().x > 0) {
+        platformSprite.setTexture(platformTex);
+        platformSprite.setScale((float)CELL_SIZE / platformTex.getSize().x, (float)CELL_SIZE / platformTex.getSize().y);
+    }
+
+    SoundBuffer menuBuf; Sound menuSound;
+    if (menuBuf.loadFromFile("Data/Asset/mus.ogg")) { 
+        menuSound.setBuffer(menuBuf); 
+        menuSound.setVolume(35.0f); 
+        menuSound.setLoop(true); 
+        menuSound.play(); 
+    }
+
+    char levelMap[LEVEL_HEIGHT][LEVEL_WIDTH];
+    for (int i=0;i<LEVEL_HEIGHT;i++) for (int j=0;j<LEVEL_WIDTH;j++) levelMap[i][j]='#';
+    for (int j=0;j<LEVEL_WIDTH;j++) levelMap[11][j]='#';
+
+    int state = 0;
+    int currentLevel = 1;
+    int selectedCharacter = 1;
+    float characterSelectTimer = 0.0f;
+    float characterBounce = 0.0f;
+    float titleAnimTimer = 0.0f;
+    float vacuumAnimTimer = 0.0f;
+    bool facingRight = true;
+    float playerX = 100.0f;
+    float playerY = 500.0f;
+    int playerHealth = 3;
+    int score = 0;
+    int combo = 1;
+    bool vacuumActive = false;
+    float vacuumTrailTimer = 0.0f;
+    float vacuumSuppressTimer = 0.0f;
+
+    Sprite playerSprite;
+    Texture* playerTexRow1 = selectedCharacter==0 ? &yellowRow1Tex : &greenRow1Tex;
+    if (playerTexRow1->getSize().x > 0) playerSprite.setTexture(*playerTexRow1);
+
+    const int MAX_ENEMIES = 64;
+    bool enemyActive[MAX_ENEMIES];
+    float enemyX[MAX_ENEMIES];
+    float enemyY[MAX_ENEMIES];
+    Texture* enemyTex[MAX_ENEMIES];
+    Sprite enemySprite[MAX_ENEMIES];
+    for (int i=0;i<MAX_ENEMIES;i++) { enemyActive[i]=false; enemyX[i]=0; enemyY[i]=0; enemyTex[i]=&ghostTex; enemySprite[i].setTexture(*enemyTex[i]); }
+
+    const int MAX_PROJECTILES = 64;
+    bool projActive[MAX_PROJECTILES];
+    float projX[MAX_PROJECTILES];
+    float projY[MAX_PROJECTILES];
+    Sprite projSprite[MAX_PROJECTILES];
+    for (int i=0;i<MAX_PROJECTILES;i++){ projActive[i]=false; projX[i]=0; projY[i]=0; projSprite[i].setTexture(rainbowShotTex); }
+
+    const int MAX_POWERUPS = 16;
+    bool puActive[MAX_POWERUPS];
+    float puX[MAX_POWERUPS];
+    float puY[MAX_POWERUPS];
+    Sprite puSprite[MAX_POWERUPS];
+    for (int i=0;i<MAX_POWERUPS;i++){ puActive[i]=false; puX[i]=0; puY[i]=0; puSprite[i].setTexture(powTex); }
+
+    auto tStart = std::chrono::steady_clock::now();
+
+    while (window.isOpen()) {
+        Event event;
+        while (window.pollEvent(event)) { if (event.type == Event::Closed) window.close(); }
+
+        auto tNow = std::chrono::steady_clock::now();
+        float dt = std::chrono::duration<float>(tNow - tStart).count();
+        tStart = tNow;
+
+        titleAnimTimer += dt;
+        characterSelectTimer += dt;
+        characterBounce = std::sin(characterSelectTimer * 4.0f) * 6.0f;
+        vacuumAnimTimer += dt;
+        if (vacuumTrailTimer > 0) vacuumTrailTimer -= dt;
+        if (vacuumSuppressTimer > 0) vacuumSuppressTimer -= dt;
+
+        if (state == 0) {
+            if (Keyboard::isKeyPressed(Keyboard::Num1)) selectedCharacter = 0;
+            if (Keyboard::isKeyPressed(Keyboard::Num2)) selectedCharacter = 1;
+            if (Keyboard::isKeyPressed(Keyboard::Enter)) {
+                std::printf("[SELECT] %s Character!\n", selectedCharacter==0?"YELLOW":"GREEN");
+                if (selectedCharacter==1){ score+=500; std::printf("[CHARACTER BONUS] Speed Demon +500 (Total: %d)\n", score); }
+                std::printf("Spawning Level %d enemies...\n\n", currentLevel);
+                int spawn = 12;
+                for (int i=0;i<spawn && i<MAX_ENEMIES;i++){
+                    enemyActive[i]=true;
+                    enemyX[i]=200.0f + (float)(i*40);
+                    enemyY[i]=200.0f + (float)((i%3)*20);
+                    enemyTex[i]= (i%4==0)?&ghostTex: (i%4==1)?&skeletonTex: (i%4==2)?&invisibleTex:&chelnovTex;
+                    enemySprite[i].setTexture(*enemyTex[i]);
+                }
+                std::printf("[SPAWNED] %d enemies for Level %d\n\n========== LEVEL %d START! ==========\n", spawn, currentLevel, currentLevel);
+                state = 1;
+                playerTexRow1 = selectedCharacter==0 ? &yellowRow1Tex : &greenRow1Tex;
+                if (playerTexRow1->getSize().x > 0) playerSprite.setTexture(*playerTexRow1);
+            }
+
+            window.clear();
+            if (bgTex.getSize().x > 0) window.draw(bgSprite);
+
+            float sTitle = 4.0f;
+            float sSub = 2.5f;
+            float tw = 8*9*sTitle;
+            float sw = 8*15*sSub;
+            drawTextMono(window, bgTex, "TUMBLEPOP", (SCREEN_WIDTH - tw)/2, 50, sTitle, glyphs);
+            drawTextMono(window, bgTex, "ARCADE EDITION", (SCREEN_WIDTH - sw)/2, 120, sSub, glyphs);
+
+            float boxWidth = 320;
+            float boxHeight = 450;
+            float boxY = 200;
+            float leftBoxX = SCREEN_WIDTH / 2 - boxWidth - 80;
+            float rightBoxX = SCREEN_WIDTH / 2 + 80;
+
+            if (platformTex.getSize().x > 0) {
+                Sprite yellowBox(platformTex);
+                float sx = boxWidth / (float)platformTex.getSize().x;
+                float sy = boxHeight / (float)platformTex.getSize().y;
+                yellowBox.setScale(sx, sy);
+                yellowBox.setPosition(leftBoxX, boxY + (selectedCharacter==0?characterBounce:0));
+                window.draw(yellowBox);
+                float bw = 6.0f;
+                Sprite edge(platformTex);
+                edge.setScale(boxWidth / (float)platformTex.getSize().x, bw / (float)platformTex.getSize().y);
+                edge.setPosition(leftBoxX, boxY + (selectedCharacter==0?characterBounce:0));
+                window.draw(edge);
+                edge.setScale(boxWidth / (float)platformTex.getSize().x, bw / (float)platformTex.getSize().y);
+                edge.setPosition(leftBoxX, boxY + (selectedCharacter==0?characterBounce:0) + boxHeight - bw);
+                window.draw(edge);
+                edge.setScale(bw / (float)platformTex.getSize().x, boxHeight / (float)platformTex.getSize().y);
+                edge.setPosition(leftBoxX, boxY + (selectedCharacter==0?characterBounce:0));
+                window.draw(edge);
+                edge.setScale(bw / (float)platformTex.getSize().x, boxHeight / (float)platformTex.getSize().y);
+                edge.setPosition(leftBoxX + boxWidth - bw, boxY + (selectedCharacter==0?characterBounce:0));
+                window.draw(edge);
+                if (selectedCharacter==0) {
+                    float sweepW = boxWidth * 0.6f;
+                    float sweepH = 24.0f;
+                    Sprite sweep(platformTex);
+                    sweep.setScale(sweepW / (float)platformTex.getSize().x, sweepH / (float)platformTex.getSize().y);
+                    float sxpos = leftBoxX + std::fmod(characterSelectTimer * 220.0f, boxWidth - sweepW);
+                    sweep.setPosition(sxpos, boxY - 30 + characterBounce);
+                    window.draw(sweep);
+                }
+            }
+
+            if (platformTex.getSize().x > 0) {
+                Sprite greenBox(platformTex);
+                float sx = boxWidth / (float)platformTex.getSize().x;
+                float sy = boxHeight / (float)platformTex.getSize().y;
+                greenBox.setScale(sx, sy);
+                greenBox.setPosition(rightBoxX, boxY + (selectedCharacter==1?characterBounce:0));
+                window.draw(greenBox);
+                float bw = 6.0f;
+                Sprite edge(platformTex);
+                edge.setScale(boxWidth / (float)platformTex.getSize().x, bw / (float)platformTex.getSize().y);
+                edge.setPosition(rightBoxX, boxY + (selectedCharacter==1?characterBounce:0));
+                window.draw(edge);
+                edge.setScale(boxWidth / (float)platformTex.getSize().x, bw / (float)platformTex.getSize().y);
+                edge.setPosition(rightBoxX, boxY + (selectedCharacter==1?characterBounce:0) + boxHeight - bw);
+                window.draw(edge);
+                edge.setScale(bw / (float)platformTex.getSize().x, boxHeight / (float)platformTex.getSize().y);
+                edge.setPosition(rightBoxX, boxY + (selectedCharacter==1?characterBounce:0));
+                window.draw(edge);
+                edge.setScale(bw / (float)platformTex.getSize().x, boxHeight / (float)platformTex.getSize().y);
+                edge.setPosition(rightBoxX + boxWidth - bw, boxY + (selectedCharacter==1?characterBounce:0));
+                window.draw(edge);
+                if (selectedCharacter==1) {
+                    float sweepW = boxWidth * 0.6f;
+                    float sweepH = 24.0f;
+                    Sprite sweep(platformTex);
+                    sweep.setScale(sweepW / (float)platformTex.getSize().x, sweepH / (float)platformTex.getSize().y);
+                    float sxpos = rightBoxX + std::fmod(characterSelectTimer * 220.0f, boxWidth - sweepW);
+                    sweep.setPosition(sxpos, boxY - 30 + characterBounce);
+                    window.draw(sweep);
+                }
+            }
+
+            int frames = std::max(1, (int)(yellowRow1Tex.getSize().x / 48));
+            int frameIdx = (int)(characterSelectTimer * 8.0f) % frames;
+            if (yellowRow1Tex.getSize().x > 0) {
+                IntRect r = uniformRect(yellowRow1Tex, frameIdx, std::max(1, (int)yellowRow1Tex.getSize().x / 48));
+                Sprite prev; prev.setTexture(yellowRow1Tex); prev.setTextureRect(r);
+                float previewScale = std::min(320.0f * 0.45f / r.width, 450.0f * 0.50f / r.height);
+                prev.setScale(-previewScale, previewScale);
+                float previewX = (SCREEN_WIDTH/2 - 320 - 80) + 320/2.0f - r.width * previewScale / 2.0f;
+                float previewY = 200 + 450/2.0f + (selectedCharacter==0?characterBounce:0) - r.height * previewScale / 2.0f;
+                prev.setPosition(previewX, previewY);
+                window.draw(prev);
+            }
+            if (greenRow1Tex.getSize().x > 0) {
+                IntRect r = uniformRect(greenRow1Tex, frameIdx, std::max(1, (int)greenRow1Tex.getSize().x / 48));
+                Sprite prev; prev.setTexture(greenRow1Tex); prev.setTextureRect(r);
+                float previewScale = std::min(320.0f * 0.45f / r.width, 450.0f * 0.50f / r.height);
+                prev.setScale(previewScale, previewScale);
+                float previewX = (SCREEN_WIDTH/2 + 80) + 320/2.0f - r.width * previewScale / 2.0f;
+                float previewY = 200 + 450/2.0f + (selectedCharacter==1?characterBounce:0) - r.height * previewScale / 2.0f;
+                prev.setPosition(previewX, previewY);
+                window.draw(prev);
+            }
+
+            float s1 = 2.5f;
+            drawTextMono(window, bgTex, "[ 1 ] YELLOW", SCREEN_WIDTH/2 - 320 - 80 + 40, 200 + 300 + (selectedCharacter==0?characterBounce:0), s1, glyphs);
+            drawTextMono(window, bgTex, "SPEED NORMAL", SCREEN_WIDTH/2 - 320 - 80 + 40, 200 + 340 + (selectedCharacter==0?characterBounce:0), 2.0f, glyphs);
+            drawTextMono(window, bgTex, "VACUUM 1.2X RANGE", SCREEN_WIDTH/2 - 320 - 80 + 40, 200 + 370 + (selectedCharacter==0?characterBounce:0), 2.0f, glyphs);
+            drawTextMono(window, bgTex, "VACUUM 1.2X ANGLE", SCREEN_WIDTH/2 - 320 - 80 + 40, 200 + 400 + (selectedCharacter==0?characterBounce:0), 2.0f, glyphs);
+
+            drawTextMono(window, bgTex, "[ 2 ] GREEN", SCREEN_WIDTH/2 + 80 + 50, 200 + 300 + (selectedCharacter==1?characterBounce:0), s1, glyphs);
+            drawTextMono(window, bgTex, "SPEED 1.5X FAST", SCREEN_WIDTH/2 + 80 + 40, 200 + 340 + (selectedCharacter==1?characterBounce:0), 2.0f, glyphs);
+            drawTextMono(window, bgTex, "VACUUM NORMAL", SCREEN_WIDTH/2 + 80 + 40, 200 + 370 + (selectedCharacter==1?characterBounce:0), 2.0f, glyphs);
+            drawTextMono(window, bgTex, "AGILE MOVEMENT", SCREEN_WIDTH/2 + 80 + 40, 200 + 400 + (selectedCharacter==1?characterBounce:0), 2.0f, glyphs);
+
+            float arrowX = (selectedCharacter == 0) ? (SCREEN_WIDTH/2 - 320 - 80 + 160) : (SCREEN_WIDTH/2 + 80 + 160);
+            float arrowY = 200 - 50 + std::sin(characterSelectTimer * 4) * 10;
+            drawTextMono(window, bgTex, "V", arrowX - 12, arrowY, 3.0f, glyphs);
+
+            drawTextMono(window, bgTex, "PRESS ENTER TO START!", (SCREEN_WIDTH - 8*22*3.0f)/2, 700, 3.0f, glyphs);
+            drawTextMono(window, bgTex, "PRESS 1 OR 2 TO SELECT CHARACTER", (SCREEN_WIDTH - 8*31*2.0f)/2, 760, 2.0f, glyphs);
+
+            window.display();
+            continue;
+        }
+
+        if (state == 1) {
+            if (Keyboard::isKeyPressed(Keyboard::Left)) { playerX -= 180.0f * dt; facingRight=false; }
+            if (Keyboard::isKeyPressed(Keyboard::Right)) { playerX += 180.0f * dt; facingRight=true; }
+            if (Keyboard::isKeyPressed(Keyboard::Space)) { vacuumActive = true; vacuumTrailTimer = 0.25f; } else vacuumActive=false;
+
+            window.clear();
+            if (bgTex.getSize().x > 0) window.draw(bgSprite);
+
+            for (int i = 0; i < LEVEL_HEIGHT; i++) {
+                for (int j = 0; j < LEVEL_WIDTH; j++) {
+                    char cell = levelMap[i][j];
+                    if (cell == 'S' || cell == '/' || cell == '\\') continue;
+                    if (cell == '#' || cell == '/' || cell == '\\') {
+                        if (platformTex.getSize().x > 0) {
+                            int visY = platformTopYAt(levelMap, i, j);
+                            platformSprite.setPosition(j * CELL_SIZE, visY);
+                            window.draw(platformSprite);
+                        }
+                    }
+                }
+            }
+
+            for (int i=0;i<MAX_POWERUPS;i++){
+                if (!puActive[i]) continue;
+                if (powTex.getSize().x > 0) window.draw(puSprite[i]);
+            }
+
+            for (int i=0;i<MAX_ENEMIES;i++){
+                if (enemyActive[i]) {
+                    enemySprite[i].setPosition(enemyX[i], enemyY[i]);
+                    if (enemyTex[i] && enemyTex[i]->getSize().x > 0) window.draw(enemySprite[i]);
+                }
+            }
+
+            for (int i=0;i<MAX_PROJECTILES;i++){
+                if (projActive[i]) { 
+                    if (rainbowShotTex.getSize().x > 0) window.draw(projSprite[i]); 
+                }
+            }
+
+            if ((vacuumActive || vacuumTrailTimer > 0) && vacuumSuppressTimer <= 0 && vacuumBeamTex.getSize().x > 0) {
+                Sprite seg(vacuumBeamTex);
+                int framesV = std::max(1, (int)(vacuumBeamTex.getSize().x / std::max(1u, (unsigned)48)));
+                int fw = std::max(1, (int)vacuumBeamTex.getSize().x / std::max(1, framesV));
+                int fh = (int)vacuumBeamTex.getSize().y;
+                int idxFwd = ((int)(vacuumAnimTimer * 14)) % std::max(1, framesV);
+                int idx = std::max(0, std::min(framesV - 1 - idxFwd, framesV - 1));
+                seg.setTextureRect(IntRect(idx * fw, 0, fw, fh));
+                float cx = playerX + PLAYER_FRAME_WIDTH * PLAYER_SCALE * 0.5f;
+                float cy = playerY + PLAYER_FRAME_HEIGHT * PLAYER_SCALE * 0.5f;
+                float px = cx + (facingRight ? +PLAYER_FRAME_WIDTH * PLAYER_SCALE * 0.62f : -PLAYER_FRAME_WIDTH * PLAYER_SCALE * 0.62f);
+                float py = cy + PLAYER_FRAME_HEIGHT * PLAYER_SCALE * 0.26f;
+                seg.setPosition(px, py - fh / 2.0f);
+                float scaleX = facingRight ? 1.0f : -1.0f;
+                seg.setScale(scaleX, VACUUM_EFFECT_THICKNESS);
+                window.draw(seg);
+            }
+
+            if (playerTexRow1 && playerTexRow1->getSize().x > 0) {
+                int framesP = std::max(1, (int)(playerTexRow1->getSize().x / 48));
+                int frameIdxP = (int)(characterSelectTimer * 10.0f) % framesP;
+                IntRect pr = uniformRect(*playerTexRow1, frameIdxP, framesP);
+                playerSprite.setTextureRect(pr);
+                if (facingRight) playerSprite.setScale(PLAYER_SCALE, PLAYER_SCALE); else playerSprite.setScale(-PLAYER_SCALE, PLAYER_SCALE);
+                playerSprite.setPosition(playerX, playerY);
+                int footRow = (int)((playerY + PLAYER_FRAME_HEIGHT * PLAYER_SCALE) / CELL_SIZE);
+                if (footRow == 11) playerSprite.setPosition(playerX, playerY - 22);
+                window.draw(playerSprite);
+                if (footRow == 11) playerSprite.setPosition(playerX, playerY);
+
+                int maxBlocks = 3;
+                int shown = playerHealth < maxBlocks ? playerHealth : maxBlocks;
+                float baseX = 20;
+                float baseY = 48;
+                int n = framesP;
+                int barIdx = -1;
+                int maxW = 0;
+                for (int i = 0; i < n; i++) {
+                    IntRect r = uniformRect(*playerTexRow1, i, n);
+                    int w = r.width;
+                    if (w > maxW) { maxW = w; barIdx = i; }
+                }
+                if (barIdx >= 0) {
+                    IntRect br = uniformRect(*playerTexRow1, barIdx, n);
+                    IntRect brC(br.left, br.top, br.width, (int)(br.height * 0.4f));
+                    Sprite bar(*playerTexRow1);
+                    bar.setTextureRect(brC);
+                    bar.setPosition(baseX, baseY);
+                    bar.setScale(1.15f, 1.15f);
+                    window.draw(bar);
+                    float barW = brC.width * 1.15f;
+                    float blockSize = 24.0f;
+                    float gap = 8.0f;
+                    float totalW = maxBlocks * blockSize + (maxBlocks - 1) * gap;
+                    float startX = baseX + ((barW - totalW) > 0 ? (barW - totalW) * 0.5f : 0.0f);
+                    float blockY = baseY + brC.height * 1.15f + 6.0f;
+                    for (int i = 0; i < maxBlocks; i++) {
+                        if (i < shown) {
+                            Sprite block(*playerTexRow1);
+                            block.setTextureRect(brC);
+                            float sx = blockSize / (float)brC.width;
+                            float sy = blockSize / (float)brC.height;
+                            block.setScale(sx, sy);
+                            block.setPosition(startX + i * (blockSize + gap), blockY);
+                            window.draw(block);
+                        }
+                    }
+                }
+            }
+
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "SCORE:");
+            drawTextMono(window, bgTex, buf, SCREEN_WIDTH - 280, 20, 2.5f, glyphs);
+            std::snprintf(buf, sizeof(buf), "%d", score);
+            drawTextMono(window, bgTex, buf, SCREEN_WIDTH - 200, 20, 2.5f, glyphs);
+            if (combo > 1) {
+                std::snprintf(buf, sizeof(buf), "COMBO X%d", combo);
+                drawTextMono(window, bgTex, buf, SCREEN_WIDTH - 260, 55, 2.0f, glyphs);
+            }
+            std::snprintf(buf, sizeof(buf), "LEVEL %d", currentLevel);
+            drawTextMono(window, bgTex, buf, SCREEN_WIDTH / 2 - 100, 20, 2.5f, glyphs);
+            int remaining = 0; for (int i=0;i<MAX_ENEMIES;i++) if (enemyActive[i]) remaining++;
+            std::snprintf(buf, sizeof(buf), "ENEMIES REMAINING: %d", remaining);
+            drawTextMono(window, bgTex, buf, SCREEN_WIDTH / 2 - 180, 55, 2.0f, glyphs);
+
+            window.display();
+            continue;
+        }
+
+        if (state == 2) {
+            window.clear();
+            if (bgTex.getSize().x > 0) window.draw(bgSprite);
+            drawTextMono(window, bgTex, "GAME OVER", (SCREEN_WIDTH - 8*9*6.0f)/2, 280, 6.0f, glyphs);
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "FINAL SCORE: %d", score);
+            drawTextMono(window, bgTex, buf, (SCREEN_WIDTH - 8*13*3.0f)/2, 400, 3.0f, glyphs);
+            drawTextMono(window, bgTex, "PRESS R TO RESTART", (SCREEN_WIDTH - 8*20*3.0f)/2, 500, 3.0f, glyphs);
+            window.display();
+            continue;
+        }
+
+        if (state == 3) {
+            window.clear();
+            if (bgTex.getSize().x > 0) window.draw(bgSprite);
+            drawTextMono(window, bgTex, "VICTORY!", (SCREEN_WIDTH - 8*8*6.0f)/2, 260, 6.0f, glyphs);
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "FINAL SCORE: %d", score);
+            drawTextMono(window, bgTex, buf, (SCREEN_WIDTH - 8*13*3.0f)/2, 400, 3.0f, glyphs);
+            drawTextMono(window, bgTex, "PRESS R FOR NEW GAME", (SCREEN_WIDTH - 8*20*3.0f)/2, 500, 3.0f, glyphs);
+            window.display();
+            continue;
+        }
+    }
+
+    return 0;
+}

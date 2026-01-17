@@ -1,0 +1,5 @@
+g++ -c tumblepop_final.cpp -std=c++11 -ID:\TumblePopProject-Refined\SFML-2.6.1\SFML-2.6.1\include
+
+g++ tumblepop_final.o -o tumblepop -LD:\TumblePopProject-Refined\SFML-2.6.1\SFML-2.6.1\lib -lsfml-graphics -lsfml-audio -lsfml-window -lsfml-system
+
+.\tumblepop.exe
